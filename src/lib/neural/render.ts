@@ -4,28 +4,67 @@ import type { NeuralField } from './field';
 /**
  * Distinct alpha levels edges and neurons are quantised to.
  *
- * Stroking each dendrite separately would mean ~600 stroke calls a frame,
+ * Stroking each dendrite separately would mean ~1200 stroke calls a frame,
  * because a stroke can only use one alpha. Grouping by quantised alpha and
- * stroking each group as a single path cuts that to the number of occupied
- * levels. 64 levels keeps the step below 2% alpha, which is imperceptible on
- * a dark field but preserves the faint resting wiring that a coarser split
- * would round away.
+ * stroking each group as a single path cuts that to the number of *occupied*
+ * levels — so the level count is a direct multiplier on draw calls, and canvas
+ * draw calls are the dominant cost here, not pixels.
+ *
+ * That only became visible once the brightness swells arrived. Before them
+ * almost every dendrite sat at the same resting alpha and a handful of levels
+ * were occupied; the swells spread them across every level, which took a
+ * 2560x1440 field from 4.1ms a frame to 14.4ms at 64 levels. Measured at that
+ * size: 64 levels 14.4ms, 8 levels 5.8ms.
+ *
+ * Levels are spaced by the square root of alpha rather than uniformly. A
+ * uniform split wastes most of its levels on bright values nothing occupies,
+ * while the dim end — where the resting wiring lives, at about 4% alpha — gets
+ * steps far larger than the values themselves and bands visibly. In sqrt space
+ * 24 levels give the dim end the same resolution 64 uniform levels did, at a
+ * third of the draw calls.
  */
-const LEVELS = 64;
+const LEVELS = 24;
+
+/** Level a given alpha belongs to. */
+function levelOfAlpha(alpha: number): number {
+  if (alpha <= 0) return 0;
+  const level = (Math.sqrt(alpha > 1 ? 1 : alpha) * LEVELS) | 0;
+  return level >= LEVELS ? LEVELS - 1 : level;
+}
+
+/** Alpha a whole level is drawn at: the midpoint of the band it covers. */
+function alphaOfLevel(level: number): number {
+  const root = (level + 0.5) / LEVELS;
+  return root * root;
+}
 
 /** Resting dendrite alpha: present, but barely. Low enough that the neurons
  *  themselves read as the brighter element, like stars over faint wiring. */
 const EDGE_BASE = 0.038;
+/**
+ * Extra dendrite alpha at the crest of a brightness swell.
+ *
+ * Large relative to EDGE_BASE on purpose: a hairline at 4% alpha has almost
+ * no room to brighten, so a small addition is invisible. This makes a crest
+ * roughly six times the resting brightness while still sitting below the
+ * illumination the pointer produces.
+ */
+const EDGE_BREATH = 0.2;
 /** Extra dendrite alpha directly under the focus. */
 const EDGE_FOCUS = 0.42;
 /** Extra dendrite alpha from a signal passing along it. */
 const EDGE_SIGNAL = 0.85;
 
-const NODE_BASE = 0.3;
+/** Resting neuron alpha, before any swell or illumination. */
+const NODE_BASE = 0.22;
+/** Extra neuron alpha at the crest of a brightness swell. */
+const NODE_BREATH = 0.45;
 const NODE_FOCUS = 0.7;
 const NODE_RADIUS = 1.05;
-/** Illumination below which a neuron is a bare dot with no halo. */
+/** Combined brightness below which a neuron is a bare dot with no halo. */
 const HALO_THRESHOLD = 0.12;
+/** How much of a halo a swell crest earns, before the pointer contributes. */
+const HALO_BREATH = 0.3;
 /** Halo radius in CSS pixels. */
 const HALO_RADIUS = 13;
 /** Radius of the bright head of a travelling signal. */
@@ -118,6 +157,7 @@ export class NeuralRenderer {
     const ctx = this.ctx;
     const graph = field.graph;
     const nodeGlow = field.nodeGlow;
+    const nodeBreath = field.nodeBreath;
     const liveX = field.liveX;
     const liveY = field.liveY;
     const edgeGlow = field.pulses.edgeGlow;
@@ -128,12 +168,12 @@ export class NeuralRenderer {
 
     this.levelCount.fill(0);
     for (let e = 0; e < edgeCount; e++) {
-      let alpha = EDGE_BASE;
+      let alpha = EDGE_BASE + (nodeBreath[edgeA[e]] + nodeBreath[edgeB[e]]) * 0.5 * EDGE_BREATH;
       if (lit) {
         alpha += (nodeGlow[edgeA[e]] + nodeGlow[edgeB[e]]) * 0.5 * EDGE_FOCUS;
         alpha += edgeGlow[e] * EDGE_SIGNAL;
       }
-      const level = alpha >= 1 ? LEVELS - 1 : (alpha * LEVELS) | 0;
+      const level = levelOfAlpha(alpha);
       this.levelOf[e] = level;
       this.levelCount[level]++;
     }
@@ -154,7 +194,7 @@ export class NeuralRenderer {
     for (let l = 0; l < LEVELS; l++) {
       const size = this.levelCount[l];
       if (size === 0) continue;
-      ctx.globalAlpha = (l + 0.5) / LEVELS;
+      ctx.globalAlpha = alphaOfLevel(l);
       ctx.beginPath();
       for (let k = start; k < start + size; k++) {
         const e = this.ordered[k];
@@ -184,13 +224,15 @@ export class NeuralRenderer {
     const ctx = this.ctx;
     const count = field.graph.count;
     const nodeGlow = field.nodeGlow;
+    const nodeBreath = field.nodeBreath;
     const liveX = field.liveX;
     const liveY = field.liveY;
 
     this.nodeLevelCount.fill(0);
     for (let i = 0; i < count; i++) {
-      const alpha = lit ? NODE_BASE + nodeGlow[i] * NODE_FOCUS : NODE_BASE;
-      const level = alpha >= 1 ? LEVELS - 1 : (alpha * LEVELS) | 0;
+      const resting = NODE_BASE + nodeBreath[i] * NODE_BREATH;
+      const alpha = lit ? resting + nodeGlow[i] * NODE_FOCUS : resting;
+      const level = levelOfAlpha(alpha);
       this.nodeLevelOf[i] = level;
       this.nodeLevelCount[level]++;
     }
@@ -209,7 +251,7 @@ export class NeuralRenderer {
     for (let l = 0; l < LEVELS; l++) {
       const size = this.nodeLevelCount[l];
       if (size === 0) continue;
-      ctx.globalAlpha = (l + 0.5) / LEVELS;
+      ctx.globalAlpha = alphaOfLevel(l);
       ctx.beginPath();
       for (let k = start; k < start + size; k++) {
         const i = this.nodeOrdered[k];
@@ -220,13 +262,14 @@ export class NeuralRenderer {
       start += size;
     }
 
-    if (!lit) return;
     // Halos only where they show. Drawing one per neuron is the single most
     // expensive thing this renderer could do, and most would be invisible.
+    // Squaring the swell keeps the count down: only true crests bloom.
     for (let i = 0; i < count; i++) {
-      const glow = nodeGlow[i];
-      if (glow < HALO_THRESHOLD) continue;
-      ctx.globalAlpha = glow * 0.55;
+      const breath = nodeBreath[i] * nodeBreath[i] * HALO_BREATH;
+      const strength = lit ? breath + nodeGlow[i] * 0.55 : breath;
+      if (strength < HALO_THRESHOLD) continue;
+      ctx.globalAlpha = strength > 1 ? 1 : strength;
       ctx.drawImage(
         this.halo,
         liveX[i] - HALO_RADIUS,

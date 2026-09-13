@@ -50,6 +50,7 @@ const star = () =>
 const options = {
   capacity: 64,
   speed: 200,
+  speedFloor: 0.35,
   hopDecay: 0.7,
   minIntensity: 0.1,
   refractorySeconds: 0.4,
@@ -80,6 +81,26 @@ describe('PulseSystem firing', () => {
     pulses.step(0.1);
     // 200px/s for 0.1s over a 100px dendrite = 20% of the way.
     expect(pulses.progress[0]).toBeCloseTo(0.2, 2);
+  });
+
+  test('sends a weakened signal along more slowly', () => {
+    const strong = new PulseSystem(line(), options);
+    strong.fire(0, 1, 0);
+    strong.step(0.1);
+
+    const weak = new PulseSystem(line(), options);
+    weak.fire(0, 0.3, 0);
+    weak.step(0.1);
+
+    expect(weak.progress[0]).toBeLessThan(strong.progress[0]);
+    expect(weak.progress[0]).toBeGreaterThan(0);
+  });
+
+  test('never stalls a signal completely, however weak', () => {
+    const pulses = new PulseSystem(line(), options);
+    pulses.fire(0, 0.01, 0);
+    run(pulses, 3);
+    expect(pulses.activeCount).toBe(0); // it still arrived
   });
 
   test('retires a pulse with no hops left when it arrives', () => {

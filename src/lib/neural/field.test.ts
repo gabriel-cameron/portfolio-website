@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest';
 import { peakHeapRiseKb } from './allocation-probe';
-import { configFor } from './config';
+import { calmVariant, configFor } from './config';
 import { NeuralField } from './field';
 
 const config = configFor(1200);
@@ -80,11 +80,222 @@ describe('NeuralField illumination', () => {
   });
 });
 
-describe('NeuralField activity', () => {
-  test('fires on its own so the page looks like it is thinking', () => {
+describe('NeuralField ripple', () => {
+  test('disturbs the neurons around a click', () => {
     const field = fieldOf();
+    field.strikeAt(600, 400);
+    field.step(0.2);
+
+    let furthestFromRest = 0;
+    for (let i = 0; i < field.graph.count; i++) {
+      const dx = field.liveX[i] - field.graph.homeX[i];
+      const dy = field.liveY[i] - field.graph.homeY[i];
+      furthestFromRest = Math.max(furthestFromRest, Math.hypot(dx, dy));
+    }
+    // More than the wobble alone could account for.
+    expect(furthestFromRest).toBeGreaterThan(config.wobbleAmplitude);
+  });
+
+  test('disturbs near the click and not the far side of the field', () => {
+    const field = fieldOf();
+    field.strikeAt(60, 60);
+    field.step(0.15);
+
+    const moved = (i: number) =>
+      Math.hypot(field.liveX[i] - field.graph.homeX[i], field.liveY[i] - field.graph.homeY[i]);
+
+    let nearTotal = 0;
+    let nearCount = 0;
+    let farTotal = 0;
+    let farCount = 0;
+    for (let i = 0; i < field.graph.count; i++) {
+      const distance = Math.hypot(field.graph.homeX[i] - 60, field.graph.homeY[i] - 60);
+      if (distance < 220) {
+        nearTotal += moved(i);
+        nearCount++;
+      } else if (distance > 800) {
+        farTotal += moved(i);
+        farCount++;
+      }
+    }
+    expect(nearCount).toBeGreaterThan(0);
+    expect(farCount).toBeGreaterThan(0);
+    expect(nearTotal / nearCount).toBeGreaterThan(farTotal / farCount);
+  });
+
+  test('settles back to rest once the ripple has passed', () => {
+    const field = fieldOf();
+    field.strikeAt(600, 400);
+    run(field, 10);
+    const limit = config.wobbleAmplitude * 1.5;
+    for (let i = 0; i < field.graph.count; i++) {
+      const dx = field.liveX[i] - field.graph.homeX[i];
+      const dy = field.liveY[i] - field.graph.homeY[i];
+      expect(Math.hypot(dx, dy)).toBeLessThanOrEqual(limit);
+    }
+  });
+
+  test('travels outward from the click', () => {
+    const ringAt = (seconds: number) => {
+      const field = fieldOf();
+      field.strikeAt(600, 400);
+      run(field, seconds);
+      let furthest = 0;
+      for (let i = 0; i < field.graph.count; i++) {
+        const dx = field.liveX[i] - field.graph.homeX[i];
+        const dy = field.liveY[i] - field.graph.homeY[i];
+        if (Math.hypot(dx, dy) < config.wobbleAmplitude) continue;
+        const distance = Math.hypot(field.graph.homeX[i] - 600, field.graph.homeY[i] - 400);
+        furthest = Math.max(furthest, distance);
+      }
+      return furthest;
+    };
+    expect(ringAt(0.45)).toBeGreaterThan(ringAt(0.15));
+  });
+});
+
+describe('NeuralField breathing', () => {
+  test('varies brightness over time', () => {
+    const field = fieldOf();
+    field.step(1 / 60);
+    const first = Float32Array.from(field.nodeBreath);
     run(field, 3);
-    expect(field.totalFirings).toBeGreaterThan(2);
+    let changed = 0;
+    for (let i = 0; i < field.graph.count; i++) {
+      if (Math.abs(field.nodeBreath[i] - first[i]) > 0.02) changed++;
+    }
+    expect(changed).toBeGreaterThan(field.graph.count * 0.5);
+  });
+
+  test('travels across the field rather than pulsing everywhere at once', () => {
+    const field = fieldOf();
+    field.step(1 / 60);
+    // Brightness at one instant must differ from place to place, or the whole
+    // screen would throb in unison.
+    let min = Number.POSITIVE_INFINITY;
+    let max = 0;
+    for (let i = 0; i < field.graph.count; i++) {
+      min = Math.min(min, field.nodeBreath[i]);
+      max = Math.max(max, field.nodeBreath[i]);
+    }
+    expect(max - min).toBeGreaterThan(0.25);
+  });
+
+  test('stays within bounds', () => {
+    const field = fieldOf();
+    for (let i = 0; i < 400; i++) {
+      field.step(1 / 30);
+      for (let n = 0; n < field.graph.count; n++) {
+        expect(field.nodeBreath[n]).toBeGreaterThanOrEqual(0);
+        expect(field.nodeBreath[n]).toBeLessThanOrEqual(1);
+      }
+    }
+  });
+
+  test('is deterministic for a seed', () => {
+    const a = fieldOf();
+    const b = fieldOf();
+    run(a, 2);
+    run(b, 2);
+    expect([...a.nodeBreath]).toEqual([...b.nodeBreath]);
+  });
+
+  test('changes smoothly, never jumping', () => {
+    const field = fieldOf();
+    field.step(1 / 60);
+    let previous = Float32Array.from(field.nodeBreath);
+    for (let f = 0; f < 300; f++) {
+      field.step(1 / 60);
+      for (let i = 0; i < field.graph.count; i++) {
+        expect(Math.abs(field.nodeBreath[i] - previous[i])).toBeLessThan(0.05);
+      }
+      previous = Float32Array.from(field.nodeBreath);
+    }
+  });
+});
+
+describe('NeuralField calm mode', () => {
+  const calm = calmVariant(config);
+
+  test('never moves a neuron on its own', () => {
+    const field = new NeuralField(1200, 800, calm, 1234);
+    const startX = Float32Array.from(field.liveX);
+    const startY = Float32Array.from(field.liveY);
+    run(field, 8);
+    for (let i = 0; i < field.graph.count; i++) {
+      expect(field.liveX[i]).toBe(startX[i]);
+      expect(field.liveY[i]).toBe(startY[i]);
+    }
+  });
+
+  test('never fires on its own', () => {
+    const field = new NeuralField(1200, 800, calm, 1234);
+    run(field, 30);
+    expect(field.totalFirings).toBe(0);
+    expect(field.pulses.activeCount).toBe(0);
+  });
+
+  test('never drifts the focus on its own', () => {
+    const field = new NeuralField(1200, 800, calm, 1234);
+    const x = field.focus.x;
+    const y = field.focus.y;
+    run(field, 20);
+    expect(field.focus.x).toBe(x);
+    expect(field.focus.y).toBe(y);
+  });
+
+  test('still ripples when the visitor clicks, more gently', () => {
+    const peak = (field: NeuralField) => {
+      field.strikeAt(600, 400);
+      let best = 0;
+      for (let f = 0; f < 60; f++) {
+        field.step(1 / 60);
+        for (let i = 0; i < field.graph.count; i++) {
+          const dx = field.liveX[i] - field.graph.homeX[i];
+          const dy = field.liveY[i] - field.graph.homeY[i];
+          best = Math.max(best, Math.hypot(dx, dy));
+        }
+      }
+      return best;
+    };
+    const calmPeak = peak(new NeuralField(1200, 800, calm, 1234));
+    expect(calmPeak).toBeGreaterThan(0);
+    expect(calmPeak).toBeLessThan(peak(fieldOf()));
+  });
+
+  test('does not breathe on its own', () => {
+    const field = new NeuralField(1200, 800, calm, 1234);
+    field.step(1 / 60);
+    const first = Float32Array.from(field.nodeBreath);
+    run(field, 5);
+    for (let i = 0; i < field.graph.count; i++) {
+      expect(field.nodeBreath[i]).toBe(first[i]);
+    }
+  });
+
+  test('still illuminates where the visitor points', () => {
+    const field = new NeuralField(1200, 800, calm, 1234);
+    field.focus.pointerMove(field.graph.homeX[0], field.graph.homeY[0]);
+    field.step(1 / 60);
+    expect(field.nodeGlow[0]).toBeGreaterThan(0.8);
+  });
+
+  test('still fires a strike when the visitor asks for one', () => {
+    const field = new NeuralField(1200, 800, calm, 1234);
+    field.strikeAt(field.graph.homeX[5], field.graph.homeY[5]);
+    expect(field.pulses.activeCount).toBeGreaterThan(0);
+    run(field, 3);
+    // And it settles rather than running on.
+    expect(field.pulses.activeCount).toBe(0);
+  });
+});
+
+describe('NeuralField activity', () => {
+  test('never fires a signal unprompted', () => {
+    const field = fieldOf();
+    run(field, 20);
+    expect(field.totalFirings).toBe(0);
+    expect(field.pulses.activeCount).toBe(0);
   });
 
   test('fires the neuron nearest a click', () => {
@@ -97,15 +308,32 @@ describe('NeuralField activity', () => {
     }
   });
 
-  test('spreads a strike further than an ambient firing', () => {
-    const quiet = new NeuralField(1200, 800, { ...config, ambientInterval: [999, 999] }, 1234);
-    quiet.strikeAt(600, 400);
+  test('spreads a strike across many dendrites', () => {
+    const field = fieldOf();
+    field.strikeAt(600, 400);
     let struck = 0;
     for (let i = 0; i < 240; i++) {
-      quiet.step(1 / 60);
-      struck = Math.max(struck, quiet.pulses.activeCount);
+      field.step(1 / 60);
+      struck = Math.max(struck, field.pulses.activeCount);
     }
-    expect(struck).toBeGreaterThan(4);
+    expect(struck).toBeGreaterThan(10);
+  });
+
+  test('carries a strike well beyond the neuron that was clicked', () => {
+    const field = fieldOf();
+    field.strikeAt(600, 400);
+    let furthest = 0;
+    for (let i = 0; i < 600; i++) {
+      field.step(1 / 60);
+      for (let e = 0; e < field.graph.edgeCount; e++) {
+        if (field.pulses.edgeGlow[e] < 0.02) continue;
+        const node = field.graph.edgeA[e];
+        const distance = Math.hypot(field.liveX[node] - 600, field.liveY[node] - 400);
+        furthest = Math.max(furthest, distance);
+      }
+    }
+    // Several hundred pixels, not a couple of dendrites.
+    expect(furthest).toBeGreaterThan(320);
   });
 
   test('keeps per-frame garbage within budget', () => {

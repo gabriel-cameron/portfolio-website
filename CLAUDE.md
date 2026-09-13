@@ -29,19 +29,51 @@ Ours is deliberately a different structure, which is what makes it distinct:
 - **Dendrites are curved,** not straight. Straight lines read as star charts; curves read
   as biology.
 - **Cursor illuminates** existing pathways within a radius; it does not create links.
+- **Brightness swells drift across the field** — neurons and pathways brighten and dim
+  again in slow waves. This is the resting state, and the whole point of it: the page
+  should feel like a *thinking brain*, not like a decoration that ticks.
 - **Click fires an action potential** — a wavefront races outward hop by hop through the
-  graph, branching at junctions, dying out after 6-8 hops. Reads as forked lightning.
+  graph, branching at junctions, and **dimming and slowing** as it goes. Reaches most of
+  the screen. Reads as forked lightning.
+- **Click also ripples the field** — an expanding ring physically displaces neurons along
+  the radius, like a stone dropped in still water, bending the dendrites with them.
+  **Deliberately slow**: a third of the speed of a signal, with a long wavelength and a
+  wide band, so it reads as one broad swell moving through tissue. A faster ring was tried
+  and rejected — it was over before the eye could follow it, which reads as a flinch
+  rather than as thought. Do not speed this up without asking.
 
-Tone: **alive but restrained** — it should feel like the page is *thinking*. Visible
-ambient pulses at rest, but never busy enough to compete with the hero text over it.
+There is deliberately **no unprompted firing.** Travelling signals that appeared on their
+own were tried and rejected — they read as random ripples rather than thought. Signals
+now only ever come from a click; the resting life comes from the swells.
 
-Hero content over the canvas: name, title, one line, CTA.
+Tone: **alive but restrained.** Never busy enough to compete with the hero text over it.
+
+Hero content over the canvas: name, title, CTA. No tagline.
 
 A fifth mechanic closes a hole the above leaves: **a wandering focus**. There is no
 cursor on a phone, so an unattended focus point drifts through the network on its own,
 illuminating as it passes; the pointer takes it over while being moved and hands back
 2.5s after it stops. Phones get the full effect, and desktop looks alive before the
 visitor touches anything.
+
+### Reduced motion: calm, not dead
+
+`prefers-reduced-motion: reduce` does **not** stop the animation. An earlier version
+rendered a single still frame, which looked like a broken page — and it is a common
+preference, since Windows 11 reports it whenever *Accessibility -> Visual effects ->
+Animation effects* is off, which people switch off for perceived speed rather than
+motion sensitivity. Ben Scott's site ignores the preference entirely; this one honours a
+narrower rule that matches what the preference is for:
+
+> **Nothing moves unless the visitor moves it.**
+
+`calmVariant()` in `config.ts` drops the wobble and the drifting focus, freezes the
+brightness swells where they are, and slows and shortens a strike. Illumination still follows a pointer and a tap
+still fires. The frame loop also idles between interactions in this mode, since the image
+is not changing — the tail has to outlast the afterglow or a strike freezes mid-decay.
+
+Do not "fix" a still hero by deleting the preference check. If full motion for everyone
+is ever wanted, that is a product decision to take deliberately.
 
 ## Technical decisions
 
@@ -68,7 +100,8 @@ nothing about simulation.
 | `render.ts` | Brightness constants (`EDGE_BASE`, `EDGE_FOCUS`, `NODE_*`, halo/trail sizes). |
 | `graph.ts` | Poisson-disc placement plus k-nearest wiring. Runs once per resize. |
 | `pulses.ts` | Signal pool and propagation. |
-| `field.ts` | Positions, illumination, ambient firing. |
+| `field.ts` | Positions, illumination, brightness swells. |
+| `ripples.ts` | Expanding displacement rings from a click. |
 | `focus.ts` | Wandering focus and pointer handover. |
 | `quality.ts` | Adaptive render scale. |
 | `grid.ts`, `rng.ts` | Spatial hash; seeded PRNG. |
@@ -85,8 +118,36 @@ Load-bearing implementation notes, all of which cost real effort to find:
   renderer draws the travelled portion progressively by splitting the curve at `t`.
   Lighting whole dendrites on entry makes a strike read as regions switching on rather
   than lightning drawing itself.
-- **Edges and nodes are drawn grouped by quantised alpha** (64 levels, counting sort), so
-  the whole network costs a few dozen draw calls rather than one per dendrite.
+- **Edges and nodes are drawn grouped by quantised alpha** (counting sort), so the whole
+  network costs a few dozen draw calls rather than one per dendrite.
+- **Canvas draw calls dominate this renderer, not pixels — so the alpha level count is
+  the performance dial.** Each occupied level is one `beginPath`/`stroke` pair. This was
+  invisible until the brightness swells arrived: before them nearly every dendrite sat at
+  the same resting alpha and a handful of levels were occupied, and afterwards they spread
+  across every level. Measured at 2560x1440: **64 levels 14.4ms a frame, 24 levels 8.8ms,
+  8 levels 5.8ms**, at a *smaller* backing store — which is how we know it is not fill
+  rate. Levels are now spaced by the square root of alpha, so the dim end where the
+  resting wiring lives keeps fine steps while bright values, which nothing occupies, do
+  not waste levels. 16 levels was rejected: it collapses 4% and 6% alpha into one bucket
+  and flattens the dim end of every swell.
+- **Adaptive quality cannot fix draw-call cost.** Its only lever is render scale, which
+  addresses fill rate. If a weak machine at a large viewport is ever the problem, the
+  lever to add is a lower level count per quality step, not a smaller buffer.
+- **The ripple is a displacement, not a drawing.** `ripples.ts` only produces an offset to
+  add to positions; dendrites bend for free because they are drawn from live positions.
+  The disturbance is a sine confined to a travelling Gaussian band, which is both what
+  water does and what makes it cheap — most neurons are rejected by a distance comparison
+  before any trigonometry. Measured cost is nil: 6.83ms idle against 6.90ms mid-ripple.
+- **Calm mode idles the frame loop, so anything outlasting the tail must be named in the
+  idle check.** A ripple settles over ~4.5s against a 2.5s tail; without listing
+  `ripples.activeCount` there, the network freezes mid-displacement.
+- **A subtle effect still needs real render weight.** The swells were invisible at first
+  despite being correct in the simulation: averaging three waves clusters values near 0.5
+  so crests never arrived, and a hairline at 4% alpha has no room to brighten. The fix was
+  to stretch the averaged wave across its useful band and give the swell an alpha
+  contribution several times the resting value, plus a halo at the crests. Verify this
+  kind of change by measuring rendered pixels, not by trusting the unit tests — they
+  passed the entire time it could not be seen.
 - **Nothing allocates in the frame loop.** Two real allocators were found and removed:
   `Math.hypot` (V8's variadic implementation allocates) and the RNG coercing state with
   `>>> 0`, which exceeds the small-integer range and boxes. Avoid both in per-frame code.
@@ -104,19 +165,27 @@ npx biome check src
 npm run dev       # then http://localhost:4321/?hud for the frame-time readout
 ```
 
-`?hud` shows fps, frame ms, neuron/dendrite/signal counts and the current quality scale.
-It is the tool for checking a real phone.
+`?hud` shows fps, frame ms, neuron/dendrite/signal counts, the quality scale, and whether
+calm mode is active. It is the tool for checking a real phone.
+
+`?motion` forces full motion regardless of the reduced-motion preference. It exists to
+tell calm mode apart from a fault — if `?motion` animates, the preference is the cause.
 
 Measured on the development machine (a fast desktop, Chromium, DPR 1):
 
 | Case | Result |
 | --- | --- |
-| 1440x900 | 251 neurons, 437 dendrites, ~4ms frames |
+| 1440x900 idle | 251 neurons, 437 dendrites, mean 5.5ms, worst 5.7ms |
+| 1440x900 during a strike | peaks ~90 signals, frames reach ~11ms |
+| 1440x900 during a ripple | no measurable cost over idle |
+| Ripple travel | ring reaches r=132px at 1s, 326px at 2s, 521px at 3s; peak 12.8px; retires at 7.8s |
+| 2560x1440 idle, after the swells | 8.8ms mean (was 14.4ms at 64 alpha levels) |
+| 2560x1440, four strikes and ripples at once | 10.0ms mean, 16.7ms worst |
 | 2560x1440 idle | 689 neurons, 1197 dendrites, mean 4.1ms, worst 8.9ms |
-| 2560x1440, ~200 live signals | mean 4.2ms, worst 9.1ms — strikes are close to free |
 | 390x844 (phone) | 106 neurons, 186 dendrites, ~5ms frames |
+| Swell visibility | 15-19 units of brightness spread across the screen at one instant, and the bright band moves between samples |
 | Main thread loaded ~26ms/frame | quality dropped 100% -> 62%, recovered to 100% |
-| `prefers-reduced-motion` | single static frame, byte-identical after 700ms, taps inert |
+| `prefers-reduced-motion` | calm mode: field drawn, no autonomous motion, responds to pointer and tap, settles after |
 | Payload | 16.5KB raw / **5.9KB gzipped** JS; 4KB HTML with CSS inlined |
 
 Not yet verified on real slow hardware — the numbers above come from a fast machine, and

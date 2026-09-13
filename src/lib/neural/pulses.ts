@@ -3,8 +3,10 @@ import type { NeuralGraph } from './graph';
 export interface PulseOptions {
   /** Maximum simultaneous pulses. Spawns beyond this are dropped. */
   capacity: number;
-  /** Travel speed in CSS pixels per second. */
+  /** Travel speed in CSS pixels per second, at full intensity. */
   speed: number;
+  /** Fraction of that speed a fully spent signal still travels at. */
+  speedFloor: number;
   /** Fraction of intensity carried across each junction. */
   hopDecay: number;
   /** Below this intensity a signal stops propagating. */
@@ -23,8 +25,8 @@ export interface PulseOptions {
  * edge and guarantees termination even on a graph full of loops — a plain
  * refractory timer does not, because a signal can lap a cycle after the timer
  * expires and echo forever. The **refractory period** then stops separate
- * strikes and ambient firings from piling up on the same neuron, which is
- * about how it looks rather than whether it halts.
+ * separate strikes from piling up on the same neuron, which is about how it
+ * looks rather than whether it halts.
  *
  * Nothing here allocates after construction: the frame loop must not create
  * garbage, or collection pauses show up as stutter.
@@ -78,8 +80,7 @@ export class PulseSystem {
    * Excites a neuron, sending a signal down every dendrite it owns.
    *
    * Always succeeds regardless of refractory state: this is the deliberate
-   * path (a click, or an ambient firing the field has chosen), and a visitor
-   * clicking twice expects two strikes.
+   * path, and a visitor clicking twice expects two strikes.
    */
   fire(node: number, intensity: number, hops: number): void {
     const wave = this.nextWave++;
@@ -144,7 +145,10 @@ export class PulseSystem {
       this.from[i] = node;
       this.progress[i] = 0;
       this.intensity[i] = intensity;
-      this.rate[i] = this.options.speed / edgeLength[edge];
+      // Weaker signals travel slower, so a strike decelerates as it spreads.
+      const speed = this.options.speed;
+      const floor = this.options.speedFloor;
+      this.rate[i] = (speed * (floor + (1 - floor) * intensity)) / edgeLength[edge];
       this.hopsLeft[i] = hops;
       this.wave[i] = wave;
     }

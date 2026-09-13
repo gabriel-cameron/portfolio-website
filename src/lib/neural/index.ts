@@ -1,4 +1,4 @@
-import { configFor } from './config';
+import { calmVariant, configFor } from './config';
 import { NeuralField } from './field';
 import { QualityController } from './quality';
 import { NeuralRenderer } from './render';
@@ -8,6 +8,11 @@ export interface MountOptions {
   surface?: HTMLElement;
   /** Shows a frame-time readout. Useful for checking real phones. */
   hud?: boolean;
+  /**
+   * Runs the full field even for a visitor who asked for reduced motion.
+   * Diagnostic: it distinguishes calm mode from a fault.
+   */
+  force?: boolean;
   seed?: number;
 }
 
@@ -32,6 +37,15 @@ const TAP_TIMEOUT = 700;
 const RESIZE_DEBOUNCE_MS = 160;
 
 /**
+ * How long calm mode keeps drawing after the visitor last did something.
+ *
+ * In calm mode nothing changes unless prompted, so drawing every frame would
+ * burn battery redrawing an identical image. This has to outlast the afterglow
+ * fade, or a strike would freeze mid-decay.
+ */
+const CALM_TAIL_MS = 2500;
+
+/**
  * Starts the neural field on a canvas. Returns a teardown function.
  *
  * Everything that can idle, does: the loop stops when the canvas scrolls out
@@ -42,11 +56,18 @@ export function mountNeuralField(canvas: HTMLCanvasElement, options: MountOption
   const surface = options.surface ?? canvas;
   const seed = options.seed ?? 20260912;
   const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+  /** Autonomous motion suppressed, interaction preserved. See calmVariant. */
+  const calm = () => reducedMotion.matches && !options.force;
 
   let width = Math.max(1, surface.clientWidth);
   let height = Math.max(1, surface.clientHeight);
 
-  let field = new NeuralField(width, height, configFor(width), seed);
+  const buildField = () => {
+    const base = configFor(width);
+    return new NeuralField(width, height, calm() ? calmVariant(base) : base, seed);
+  };
+
+  let field = buildField();
   const renderer = new NeuralRenderer(canvas);
   const quality = new QualityController({
     scales: [1, 0.8, 0.62],
@@ -62,6 +83,12 @@ export function mountNeuralField(canvas: HTMLCanvasElement, options: MountOption
   let running = false;
   let onScreen = true;
   let resizeTimer = 0;
+  let busyUntil = 0;
+
+  /** Marks the field as having something to draw for the next while. */
+  const wake = () => {
+    busyUntil = performance.now() + CALM_TAIL_MS;
+  };
 
   const pixelRatio = () => Math.min(window.devicePixelRatio || 1, MAX_PIXEL_RATIO) * quality.scale;
 
@@ -70,14 +97,22 @@ export function mountNeuralField(canvas: HTMLCanvasElement, options: MountOption
     renderer.prepare(field);
   }
 
-  function drawResting() {
-    renderer.draw(field, false);
-  }
-
   function frame(now: number) {
     frameHandle = requestAnimationFrame(frame);
     const elapsedMs = now - lastFrame;
     lastFrame = now;
+
+    // Calm mode idles between interactions: the image is not changing. A
+    // ripple outlasts the tail, so idling on the timer alone would freeze the
+    // network mid-displacement.
+    if (
+      calm() &&
+      now > busyUntil &&
+      field.pulses.activeCount === 0 &&
+      field.ripples.activeCount === 0
+    ) {
+      return;
+    }
 
     const dt = Math.min(elapsedMs / 1000, MAX_FRAME_SECONDS);
     field.step(dt);
@@ -91,14 +126,16 @@ export function mountNeuralField(canvas: HTMLCanvasElement, options: MountOption
         `${(1000 / Math.max(elapsedMs, 0.001)).toFixed(0)} fps · ` +
         `${elapsedMs.toFixed(1)} ms · ` +
         `${field.graph.count} neurons · ${field.graph.edgeCount} dendrites · ` +
-        `${field.pulses.activeCount} signals · ${(quality.scale * 100).toFixed(0)}%`;
+        `${field.pulses.activeCount} signals · ${(quality.scale * 100).toFixed(0)}%` +
+        (calm() ? ' · calm (reduced-motion)' : '');
     }
   }
 
   function start() {
-    if (running || reducedMotion.matches || !onScreen || document.hidden) return;
+    if (running || !onScreen || document.hidden) return;
     running = true;
     lastFrame = performance.now();
+    wake();
     frameHandle = requestAnimationFrame(frame);
   }
 
@@ -114,9 +151,10 @@ export function mountNeuralField(canvas: HTMLCanvasElement, options: MountOption
     if (nextWidth === width && nextHeight === height) return;
     width = nextWidth;
     height = nextHeight;
-    field = new NeuralField(width, height, configFor(width), seed);
+    field = buildField();
     applySize();
-    if (!running) drawResting();
+    wake();
+    if (!running) renderer.draw(field, true);
   }
 
   function pointAt(event: PointerEvent) {
@@ -127,9 +165,9 @@ export function mountNeuralField(canvas: HTMLCanvasElement, options: MountOption
   // --- events ---------------------------------------------------------------
 
   const onPointerMove = (event: PointerEvent) => {
-    if (reducedMotion.matches) return;
     const point = pointAt(event);
     field.focus.pointerMove(point.x, point.y);
+    wake();
   };
 
   const onPointerLeave = () => field.focus.pointerLeave();
@@ -145,13 +183,13 @@ export function mountNeuralField(canvas: HTMLCanvasElement, options: MountOption
   };
 
   const onPointerUp = (event: PointerEvent) => {
-    if (reducedMotion.matches) return;
     // Scrolling a phone with a finger must not fire the network.
     const travelled = Math.hypot(event.clientX - pressX, event.clientY - pressY);
     if (travelled > TAP_SLOP || event.timeStamp - pressAt > TAP_TIMEOUT) return;
     const point = pointAt(event);
     field.focus.pointerMove(point.x, point.y);
     field.strikeAt(point.x, point.y);
+    wake();
   };
 
   const onVisibility = () => (document.hidden ? stop() : start());
@@ -162,12 +200,11 @@ export function mountNeuralField(canvas: HTMLCanvasElement, options: MountOption
   };
 
   const onMotionPreference = () => {
-    if (reducedMotion.matches) {
-      stop();
-      drawResting();
-    } else {
-      start();
-    }
+    // The whole field is rebuilt: calm mode is a different configuration, not
+    // a flag the running simulation consults.
+    field = buildField();
+    applySize();
+    wake();
   };
 
   const visibility = new IntersectionObserver(
@@ -190,8 +227,7 @@ export function mountNeuralField(canvas: HTMLCanvasElement, options: MountOption
   visibility.observe(canvas);
 
   applySize();
-  if (reducedMotion.matches) drawResting();
-  else start();
+  start();
 
   return function unmount() {
     stop();
