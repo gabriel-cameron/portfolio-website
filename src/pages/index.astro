@@ -1,17 +1,163 @@
 ---
+import Layout from '../layouts/Layout.astro';
 
+// Placeholder copy. Real headline, role and positioning come with the
+// content pass, once the hero animation is settled.
+const name = 'Gabriel Cameron';
+const role = 'Software Engineer';
+const line = 'I build systems that hold up under load, and the tooling that keeps them honest.';
 ---
 
-<html lang="en">
-	<head>
-		<meta charset="utf-8" />
-		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-		<link rel="icon" href="/favicon.ico" />
-		<meta name="viewport" content="width=device-width" />
-		<meta name="generator" content={Astro.generator} />
-		<title>Astro</title>
-	</head>
-	<body>
-		<h1>Astro</h1>
-	</body>
-</html>
+<Layout
+  title={`${name} — ${role}`}
+  description={`${name}, ${role.toLowerCase()}. Selected work, experience and contact.`}
+>
+  <section class="hero" id="hero">
+    <canvas class="hero__canvas" aria-hidden="true"></canvas>
+
+    <div class="hero__content">
+      <h1 class="hero__name">{name}</h1>
+      <p class="hero__role">{role}</p>
+      <p class="hero__line">{line}</p>
+      <a class="hero__cta" href="#work">
+        See the work
+        <span class="hero__cta-arrow" aria-hidden="true">&darr;</span>
+      </a>
+    </div>
+  </section>
+
+  <section class="placeholder" id="work">
+    <p>Work, experience and contact land here next.</p>
+  </section>
+</Layout>
+
+<script>
+  import { mountNeuralField } from '../lib/neural';
+
+  const canvas = document.querySelector<HTMLCanvasElement>('.hero__canvas');
+  const hero = document.querySelector<HTMLElement>('.hero');
+
+  if (canvas && hero) {
+    mountNeuralField(canvas, {
+      surface: hero,
+      hud: new URLSearchParams(window.location.search).has('hud'),
+    });
+  }
+</script>
+
+<style>
+  .hero {
+    position: relative;
+    /* dvh, not vh: mobile browser chrome hides on scroll and vh would jump. */
+    min-height: 100dvh;
+    display: grid;
+    place-items: center;
+    overflow: hidden;
+    background: var(--bg);
+    /* The whole hero is the strike surface, so suppress the text selection
+       a drag across it would otherwise produce. */
+    user-select: none;
+  }
+
+  .hero__canvas {
+    position: absolute;
+    inset: 0;
+    display: block;
+    width: 100%;
+    height: 100%;
+  }
+
+  .hero__content {
+    position: relative;
+    z-index: 1;
+    max-width: 34rem;
+    padding: 2rem 1.5rem;
+    text-align: center;
+  }
+
+  /* A soft well behind the text. The field is busiest near the centre, and
+     unaided the headline sits in the noise. */
+  .hero__content::before {
+    content: '';
+    position: absolute;
+    inset: -18% -22%;
+    z-index: -1;
+    background: radial-gradient(
+      ellipse at center,
+      rgba(4, 6, 13, 0.88) 0%,
+      rgba(4, 6, 13, 0.7) 45%,
+      rgba(4, 6, 13, 0) 72%
+    );
+    pointer-events: none;
+  }
+
+  .hero__name {
+    margin: 0;
+    font-size: clamp(2.25rem, 8vw, 3.75rem);
+    font-weight: 600;
+    letter-spacing: -0.025em;
+    line-height: 1.1;
+  }
+
+  .hero__role {
+    margin: 0.5rem 0 0;
+    color: var(--accent);
+    font-size: clamp(0.95rem, 3.5vw, 1.1rem);
+    font-weight: 500;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+  }
+
+  .hero__line {
+    margin: 1.5rem auto 0;
+    max-width: 30rem;
+    color: var(--text-dim);
+    font-size: clamp(1rem, 3.8vw, 1.15rem);
+    text-wrap: pretty;
+  }
+
+  .hero__cta {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-top: 2.25rem;
+    padding: 0.7rem 1.4rem;
+    border: 1px solid rgba(150, 194, 255, 0.35);
+    border-radius: 999px;
+    color: var(--text);
+    font-size: 0.95rem;
+    text-decoration: none;
+    transition:
+      border-color 180ms ease,
+      background-color 180ms ease;
+  }
+
+  .hero__cta:hover,
+  .hero__cta:focus-visible {
+    border-color: rgba(150, 194, 255, 0.75);
+    background: rgba(150, 194, 255, 0.09);
+  }
+
+  .hero__cta-arrow {
+    transition: transform 180ms ease;
+  }
+
+  .hero__cta:hover .hero__cta-arrow {
+    transform: translateY(2px);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .hero__cta,
+    .hero__cta-arrow {
+      transition: none;
+    }
+  }
+
+  .placeholder {
+    display: grid;
+    place-items: center;
+    min-height: 60vh;
+    padding: 4rem 1.5rem;
+    color: var(--text-dim);
+  }
+</style>

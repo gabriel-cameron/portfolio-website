@@ -1,0 +1,62 @@
+:root {
+  --bg: #04060d;
+  --text: #e8eefc;
+  --text-dim: #9fb0d0;
+  --accent: #96c2ff;
+
+  --font: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  line-height: 1.6;
+  /* The field runs edge to edge; a horizontal scrollbar would reveal seams. */
+  overflow-x: hidden;
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+/* Frame-time readout, appended by the field at runtime (?hud). */
+.neural-hud {
+  position: absolute;
+  bottom: 0.75rem;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 2;
+  padding: 0.35rem 0.7rem;
+  border: 1px solid rgba(150, 194, 255, 0.25);
+  border-radius: 999px;
+  background: rgba(4, 6, 13, 0.72);
+  color: var(--text-dim);
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+/* The readout exists to be checked on a real phone, so it has to fit one. */
+@media (max-width: 34rem) {
+  .neural-hud {
+    max-width: calc(100vw - 1.5rem);
+    font-size: 0.6rem;
+    text-align: center;
+    white-space: normal;
+  }
+}

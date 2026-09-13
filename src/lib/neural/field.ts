@@ -132,8 +132,12 @@ export class NeuralField {
   private updatePositions(): void {
     const { count, homeX, homeY } = this.graph;
     for (let i = 0; i < count; i++) {
-      this.liveX[i] = homeX[i] + Math.cos(this.time * this.wobbleFreqX[i] + this.wobblePhaseX[i]) * this.wobbleAmpX[i];
-      this.liveY[i] = homeY[i] + Math.sin(this.time * this.wobbleFreqY[i] + this.wobblePhaseY[i]) * this.wobbleAmpY[i];
+      this.liveX[i] =
+        homeX[i] +
+        Math.cos(this.time * this.wobbleFreqX[i] + this.wobblePhaseX[i]) * this.wobbleAmpX[i];
+      this.liveY[i] =
+        homeY[i] +
+        Math.sin(this.time * this.wobbleFreqY[i] + this.wobblePhaseY[i]) * this.wobbleAmpY[i];
     }
   }
 

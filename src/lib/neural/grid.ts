@@ -17,9 +17,8 @@ export class SpatialGrid {
   private head = new Int32Array(0);
   /** Next node index sharing the cell, or -1. */
   private next = new Int32Array(0);
-  private xs = new Float32Array(0);
-  private ys = new Float32Array(0);
-  private count = 0;
+  private xs: Float32Array = new Float32Array(0);
+  private ys: Float32Array = new Float32Array(0);
 
   constructor(cellSize: number) {
     this.cellSize = cellSize;
@@ -28,7 +27,6 @@ export class SpatialGrid {
   build(xs: Float32Array, ys: Float32Array, count: number, width: number, height: number): void {
     this.xs = xs;
     this.ys = ys;
-    this.count = count;
     this.cols = Math.max(1, Math.ceil(width / this.cellSize));
     this.rows = Math.max(1, Math.ceil(height / this.cellSize));
 

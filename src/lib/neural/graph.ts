@@ -1,5 +1,5 @@
-import { createRng } from './rng';
 import { SpatialGrid } from './grid';
+import { createRng } from './rng';
 
 export interface GraphOptions {
   width: number;

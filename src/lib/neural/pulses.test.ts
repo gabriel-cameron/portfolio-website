@@ -32,10 +32,20 @@ function graphOf(count: number, edges: Array<[number, number]>): NeuralGraph {
 }
 
 /** 0 - 1 - 2 - 3 in a line. */
-const line = () => graphOf(4, [[0, 1], [1, 2], [2, 3]]);
+const line = () =>
+  graphOf(4, [
+    [0, 1],
+    [1, 2],
+    [2, 3],
+  ]);
 
 /** Hub 0 wired to 1, 2, 3. */
-const star = () => graphOf(4, [[0, 1], [0, 2], [0, 3]]);
+const star = () =>
+  graphOf(4, [
+    [0, 1],
+    [0, 2],
+    [0, 3],
+  ]);
 
 const options = {
   capacity: 64,
@@ -85,8 +95,11 @@ describe('PulseSystem propagation', () => {
     const pulses = new PulseSystem(line(), options);
     pulses.fire(0, 1, 3);
     run(pulses, 0.6); // one 100px dendrite takes 0.5s
-    expect(pulses.activeCount).toBeGreaterThan(0);
-    expect(pulses.edgeGlow[1]).toBeGreaterThan(0);
+    expect(pulses.activeCount).toBe(1);
+    // Crossed the first dendrite and is now travelling the second.
+    expect(pulses.edgeGlow[0]).toBeGreaterThan(0);
+    expect(pulses.edge[0]).toBe(1);
+    expect(pulses.from[0]).toBe(1);
   });
 
   test('weakens with every hop', () => {
@@ -113,7 +126,14 @@ describe('PulseSystem propagation', () => {
   });
 
   test('branches at a junction', () => {
-    const pulses = new PulseSystem(graphOf(4, [[0, 1], [1, 2], [1, 3]]), options);
+    const pulses = new PulseSystem(
+      graphOf(4, [
+        [0, 1],
+        [1, 2],
+        [1, 3],
+      ]),
+      options,
+    );
     pulses.fire(0, 1, 4);
     run(pulses, 0.6);
     // Arriving at hub 1, the signal continues down both other dendrites.
@@ -128,7 +148,14 @@ describe('PulseSystem propagation', () => {
   });
 
   test('terminates instead of echoing around a loop', () => {
-    const ring = graphOf(6, [[0, 1], [1, 2], [2, 3], [3, 4], [4, 5], [5, 0]]);
+    const ring = graphOf(6, [
+      [0, 1],
+      [1, 2],
+      [2, 3],
+      [3, 4],
+      [4, 5],
+      [5, 0],
+    ]);
     const pulses = new PulseSystem(ring, { ...options, hopDecay: 1, minIntensity: 0 });
     pulses.fire(0, 1, 1000);
     run(pulses, 10);
@@ -161,10 +188,17 @@ describe('PulseSystem propagation', () => {
 });
 
 describe('PulseSystem afterglow', () => {
-  test('lights the dendrite a pulse is travelling along', () => {
+  test('leaves a dendrite dark until the signal has crossed it', () => {
     const pulses = new PulseSystem(line(), options);
     pulses.fire(0, 1, 2);
-    pulses.step(0.1);
+    pulses.step(0.1); // 20% of the way along
+    expect(pulses.edgeGlow[0]).toBe(0);
+  });
+
+  test('lights a dendrite once the signal reaches the far end', () => {
+    const pulses = new PulseSystem(line(), options);
+    pulses.fire(0, 1, 2);
+    run(pulses, 0.6); // a 100px dendrite at 200px/s takes 0.5s
     expect(pulses.edgeGlow[0]).toBeGreaterThan(0);
   });
 

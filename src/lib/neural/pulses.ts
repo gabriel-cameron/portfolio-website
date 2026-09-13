@@ -37,7 +37,11 @@ export class PulseSystem {
   /** How far along the dendrite, 0 to 1. */
   readonly progress: Float32Array;
   readonly intensity: Float32Array;
-  /** Lingering brightness per dendrite, decaying toward zero. */
+  /**
+   * Brightness left behind on each dendrite a signal has finished crossing,
+   * decaying toward zero. A dendrite currently being travelled is not
+   * included — the renderer draws that part progressively.
+   */
   readonly edgeGlow: Float32Array;
 
   activeCount = 0;
@@ -100,12 +104,16 @@ export class PulseSystem {
     for (let i = this.activeCount - 1; i >= 0; i--) {
       const advanced = this.progress[i] + this.rate[i] * dt;
       const edge = this.edge[i];
-      if (this.edgeGlow[edge] < this.intensity[i]) this.edgeGlow[edge] = this.intensity[i];
 
       if (advanced < 1) {
         this.progress[i] = advanced;
         continue;
       }
+
+      // Light the dendrite only now that the signal has crossed it. Lighting
+      // it on entry makes a strike read as regions switching on; leaving the
+      // travelled part to the renderer makes it draw itself like lightning.
+      if (this.edgeGlow[edge] < this.intensity[i]) this.edgeGlow[edge] = this.intensity[i];
 
       const target = edgeA[edge] === this.from[i] ? edgeB[edge] : edgeA[edge];
       const carried = this.intensity[i] * hopDecay;

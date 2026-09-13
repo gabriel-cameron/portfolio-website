@@ -23,7 +23,10 @@
     "esbuild": true
   },
   "devDependencies": {
+    "@astrojs/check": "^0.9.10",
     "@biomejs/biome": "^2.5.13",
+    "@types/node": "^22.20.2",
+    "typescript": "^6.0.3",
     "vitest": "^5.0.0"
   }
 }
