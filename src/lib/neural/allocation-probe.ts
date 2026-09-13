@@ -16,8 +16,17 @@
  * per iteration produces ~8MB.
  */
 
-/** Largest heap climb a genuinely allocation-free loop should show, in KB. */
-export const ALLOCATION_FREE_KB = 1500;
+/**
+ * Largest heap climb a genuinely allocation-free loop should show, in KB.
+ *
+ * Set well above the noise seen in practice rather than just above it. At 1500
+ * the grid probe failed roughly one run in seven: its loop body is so cheap
+ * that the run is over in few collection cycles, and the sawtooth it samples is
+ * correspondingly ragged. The headroom costs nothing in sensitivity — a single
+ * small object per iteration produces megabytes, so the gap to a real
+ * regression is still wide.
+ */
+export const ALLOCATION_FREE_KB = 3000;
 
 /**
  * Runs `body` `iterations` times and returns the largest rise in heap usage

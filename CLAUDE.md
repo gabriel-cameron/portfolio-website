@@ -48,7 +48,27 @@ now only ever come from a click; the resting life comes from the swells.
 
 Tone: **alive but restrained.** Never busy enough to compete with the hero text over it.
 
+**The background is signed off and locked** (as of 2026-09-12). Do not retune the
+animation's feel without being asked. Fixing a measured bug is fine; adjusting how it
+looks is not.
+
 Hero content over the canvas: name, title, CTA. No tagline.
+
+**Type treatment: monospace, lowercase.** Chosen from a board of eight options, on the
+argument that it reads as plainly technical and claims nothing it cannot back up. The
+name and role are lowercased in CSS, not in the content, so the name stays properly
+capitalised for screen readers and the page title. The CTA follows into monospace and
+squares off its corners, or the two read as different voices.
+
+The role keeps the accent blue at Gabriel's request. The treatment it replaced was
+tracked-out all-caps *and* accent-tinted, which together are the commonest
+generated-page tell; dropping the all-caps and the letter-spacing was the part that
+mattered.
+
+This is the one direction of the eight that needs no web font: every platform ships a
+usable monospace, so the hero costs nothing to download. A distinctive mono (JetBrains
+Mono, IBM Plex Mono) would sharpen it and is the obvious upgrade if it ever feels too
+generic — but it is not required for the design to hold.
 
 A fifth mechanic closes a hole the above leaves: **a wandering focus**. There is no
 cursor on a phone, so an unattended focus point drifts through the network on its own,

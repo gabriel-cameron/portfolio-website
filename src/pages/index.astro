@@ -18,7 +18,7 @@ const role = 'Software Engineer';
       <h1 class="hero__name">{name}</h1>
       <p class="hero__role">{role}</p>
       <a class="hero__cta" href="#work">
-        See the work
+        See my work
         <span class="hero__cta-arrow" aria-hidden="true">&darr;</span>
       </a>
     </div>
@@ -91,23 +91,33 @@ const role = 'Software Engineer';
     pointer-events: none;
   }
 
+  /* Monospace, lowercase: plainly technical, claiming nothing it cannot back
+     up. Lowercasing is done in CSS rather than in the content so the name
+     stays properly capitalised for screen readers and the page title. */
   .hero__name {
     margin: 0;
-    font-size: clamp(2.25rem, 8vw, 3.75rem);
-    font-weight: 600;
-    letter-spacing: -0.025em;
-    line-height: 1.1;
+    font-family: var(--font-mono);
+    /* Smaller than a sans of the same rank would be. Monospace sets wide, and
+       "gabriel cameron" is fifteen characters that have to fit a phone. */
+    font-size: clamp(1.5rem, 6.1vw, 2.9rem);
+    font-weight: 500;
+    letter-spacing: -0.02em;
+    line-height: 1.25;
+    text-transform: lowercase;
   }
 
   .hero__role {
-    margin: 0.5rem 0 0;
+    margin: 0.35rem 0 0;
     color: var(--accent);
-    font-size: clamp(0.95rem, 3.5vw, 1.1rem);
-    font-weight: 500;
-    letter-spacing: 0.14em;
-    text-transform: uppercase;
+    font-family: var(--font-mono);
+    font-size: clamp(0.8rem, 2.7vw, 1.15rem);
+    font-weight: 400;
+    letter-spacing: 0;
+    text-transform: lowercase;
   }
 
+  /* Follows the hero into monospace so the two do not read as different
+     voices, but keeps the original pill shape and proportions. */
   .hero__cta {
     display: inline-flex;
     align-items: center;
@@ -117,8 +127,11 @@ const role = 'Software Engineer';
     border: 1px solid rgba(150, 194, 255, 0.35);
     border-radius: 999px;
     color: var(--text);
-    font-size: 0.95rem;
+    font-family: var(--font-mono);
+    font-size: 0.85rem;
+    letter-spacing: -0.01em;
     text-decoration: none;
+    text-transform: lowercase;
     transition:
       border-color 180ms ease,
       background-color 180ms ease;

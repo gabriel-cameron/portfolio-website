@@ -72,7 +72,9 @@ describe('SpatialGrid', () => {
 
   test('does not allocate per query', () => {
     const grid = gridOf([[50, 50]]);
-    const riseKb = peakHeapRiseKb(200000, () => grid.queryRadius(50, 50, 5, out));
+    // More iterations than the other probes need: one query is cheap enough
+    // that a shorter run does not produce a stable sawtooth to measure.
+    const riseKb = peakHeapRiseKb(400000, () => grid.queryRadius(50, 50, 5, out));
     expect(riseKb).toBeLessThan(ALLOCATION_FREE_KB);
   });
 });
