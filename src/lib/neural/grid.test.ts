@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, test } from 'vitest';
+import { ALLOCATION_FREE_KB, peakHeapRiseKb } from './allocation-probe';
 import { SpatialGrid } from './grid';
 
 /** Builds a grid over the given points and returns the query helper. */
@@ -71,10 +72,7 @@ describe('SpatialGrid', () => {
 
   test('does not allocate per query', () => {
     const grid = gridOf([[50, 50]]);
-    grid.queryRadius(50, 50, 5, out);
-    const before = process.memoryUsage().heapUsed;
-    for (let i = 0; i < 20000; i++) grid.queryRadius(50, 50, 5, out);
-    const growthKb = (process.memoryUsage().heapUsed - before) / 1024;
-    expect(growthKb).toBeLessThan(512);
+    const riseKb = peakHeapRiseKb(200000, () => grid.queryRadius(50, 50, 5, out));
+    expect(riseKb).toBeLessThan(ALLOCATION_FREE_KB);
   });
 });

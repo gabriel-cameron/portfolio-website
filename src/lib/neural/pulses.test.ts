@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'vitest';
+import { ALLOCATION_FREE_KB, peakHeapRiseKb } from './allocation-probe';
 import type { NeuralGraph } from './graph';
 import { PulseSystem } from './pulses';
 
@@ -186,13 +187,10 @@ describe('PulseSystem afterglow', () => {
 describe('PulseSystem cost', () => {
   test('does not allocate while stepping', () => {
     const pulses = new PulseSystem(line(), options);
-    pulses.step(1 / 60);
-    const before = process.memoryUsage().heapUsed;
-    for (let i = 0; i < 20000; i++) {
+    const riseKb = peakHeapRiseKb(200000, (i) => {
       if (i % 200 === 0) pulses.fire(0, 1, 3);
       pulses.step(1 / 60);
-    }
-    const growthKb = (process.memoryUsage().heapUsed - before) / 1024;
-    expect(growthKb).toBeLessThan(512);
+    });
+    expect(riseKb).toBeLessThan(ALLOCATION_FREE_KB);
   });
 });
