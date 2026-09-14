@@ -1,43 +1,39 @@
-# Astro Starter Kit: Minimal
+# gabrielcameron.com
+
+Personal portfolio. Astro, TypeScript, plain CSS, no runtime dependencies.
+
+The hero is a hand-built canvas simulation: a network of neurons wired into a persistent
+graph, with brightness swells drifting across it, and signals that branch outward and
+ripple the field when you click. The project card materialises through an SVG
+displacement filter applied to live DOM, so its text stays real text.
+
+About 7 KB of gzipped JavaScript, all of it the animation.
+
+## Running it
 
 ```sh
-npm create astro@latest -- --template minimal
+npm install
+npm run dev      # http://localhost:4321  (?hud for a frame-time readout)
 ```
 
-> 🧑‍🚀 **Seasoned astronaut?** Delete this file. Have fun!
+## Checks
 
-## 🚀 Project Structure
-
-Inside of your Astro project, you'll see the following folders and files:
-
-```text
-/
-├── public/
-├── src/
-│   └── pages/
-│       └── index.astro
-└── package.json
+```sh
+npm test         # unit tests for the simulation
+npm run build
+npx astro check  # types, including .astro files
+npx biome check src
 ```
 
-Astro looks for `.astro` or `.md` files in the `src/pages/` directory. Each page is exposed as a route based on its file name.
+## Layout
 
-There's nothing special about `src/components/`, but that's where we like to put any Astro/React/Vue/Svelte/Preact components.
+```
+src/
+├── lib/neural/   the field: simulation, renderer, and the maths behind them
+├── layouts/
+├── pages/
+└── styles/
+```
 
-Any static assets, like images, can be placed in the `public/` directory.
-
-## 🧞 Commands
-
-All commands are run from the root of the project, from a terminal:
-
-| Command                   | Action                                           |
-| :------------------------ | :----------------------------------------------- |
-| `npm install`             | Installs dependencies                            |
-| `npm run dev`             | Starts local dev server at `localhost:4321`      |
-| `npm run build`           | Build your production site to `./dist/`          |
-| `npm run preview`         | Preview your build locally, before deploying     |
-| `npm run astro ...`       | Run CLI commands like `astro add`, `astro check` |
-| `npm run astro -- --help` | Get help using the Astro CLI                     |
-
-## 👀 Want to learn more?
-
-Feel free to check [our documentation](https://docs.astro.build) or jump into our [Discord server](https://astro.build/chat).
+The simulation knows nothing about canvases and the renderer nothing about the
+simulation, so either can be replaced without touching the other.
