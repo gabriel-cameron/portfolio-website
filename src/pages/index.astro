@@ -313,12 +313,21 @@ const projects = [
     pathwayRaf = requestAnimationFrame(step);
   }
 
-  function select(next: number, animate = true) {
+  /**
+   * Switches project.
+   *
+   * `moveFocus` follows a keyboard change. Clicking a row leaves DOM focus on
+   * it, and Chrome re-shows the focus ring on whatever is focused the moment a
+   * key is pressed — so without this, paging by number left a ring sitting on
+   * the row you last clicked rather than the one now selected.
+   */
+  function select(next: number, { animate = true, moveFocus = false } = {}) {
     if (!projects.length) return;
     index = (next + projects.length) % projects.length;
     paint();
     if (animate) materialise(70, 460);
     drawPathway();
+    if (moveFocus) items[index]?.querySelector('button')?.focus();
   }
 
   /** Slide duration in CSS. The reveal will not wait longer than this. */
@@ -392,9 +401,11 @@ const projects = [
 
   document.addEventListener('keydown', (event) => {
     if (hero?.dataset.view !== 'work') return;
-    if (event.key === 'ArrowUp' || event.key === 'ArrowLeft') select(index - 1);
-    if (event.key === 'ArrowDown' || event.key === 'ArrowRight') select(index + 1);
-    if (event.key >= '1' && event.key <= String(projects.length)) select(Number(event.key) - 1);
+    if (event.key === 'ArrowUp' || event.key === 'ArrowLeft') select(index - 1, { moveFocus: true });
+    if (event.key === 'ArrowDown' || event.key === 'ArrowRight') select(index + 1, { moveFocus: true });
+    if (event.key >= '1' && event.key <= String(projects.length)) {
+      select(Number(event.key) - 1, { moveFocus: true });
+    }
     if (event.key === 'Escape') closeWork();
   });
 
@@ -405,7 +416,7 @@ const projects = [
   work?.addEventListener('pointerdown', (event) => event.stopPropagation());
   work?.addEventListener('pointerup', (event) => event.stopPropagation());
 
-  select(0, false);
+  select(0, { animate: false });
 </script>
 
 <style>
@@ -652,8 +663,18 @@ const projects = [
       rgba(140, 176, 235, 0.04) 100%
     );
     border: 1px solid rgba(198, 220, 255, 0.16);
-    backdrop-filter: blur(18px) saturate(135%);
+    /*
+      Prefixed first, standard last, and the order is load-bearing. The CSS
+      minifier treats the two as duplicates and keeps whichever comes last, so
+      with the standard property written first the build shipped only the
+      -webkit- form and the glass silently vanished outside Safari.
+
+      Both cannot survive minification, so this targets Safari 15.4+, which
+      supports the property unprefixed. Older Safari loses the blur and falls
+      back to the gradient, border and shadow — plainer, not broken.
+    */
     -webkit-backdrop-filter: blur(18px) saturate(135%);
+    backdrop-filter: blur(18px) saturate(135%);
     /* Top edge catches the light; the drop shadow lifts it off the field. */
     box-shadow:
       inset 0 1px 0 rgba(233, 244, 255, 0.22),

@@ -61,6 +61,11 @@ project index opposite it. Content is placeholder.
   `feDisplacementMap` offsets y by `(G − 0.5)`. Together they make a horizontal tear;
   change either and it becomes a soft blobby wobble. The curve is a hard ease-out so the
   strips snap back into line.
+- **Vendor-prefixed and standard properties cannot both survive the build.** The CSS
+  minifier treats them as duplicate declarations and keeps whichever is written last.
+  Always put the prefixed form first and the standard one last — the reverse shipped
+  `-webkit-backdrop-filter` alone and killed the glass everywhere but Safari, and dev
+  looked fine because dev does not minify. Check `dist/` after touching prefixed CSS.
 - **An element with `filter` is its own backdrop root**, so `backdrop-filter` has nothing
   to sample through it and the glass goes flat. The warp is removed once it is spent.
 - **Astro scoped styles do not reach elements created at runtime.** Anything
