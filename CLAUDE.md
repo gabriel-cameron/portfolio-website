@@ -119,6 +119,15 @@ Measured on a fast desktop, Chromium, DPR 1:
 Unverified on slow hardware and on iOS Safari, which is the main risk for the animated
 filter and `backdrop-filter`. Use `?hud` on a real phone.
 
+## Deployment
+
+Public repo, GitHub Pages, source set to GitHub Actions. `.github/workflows/deploy.yml`
+lints, typechecks, tests, builds and publishes on every push to `main`. The custom
+domain lives in both the Pages settings and `public/CNAME`, so it survives redeploys.
+
+Commits use the GitHub noreply address; the repo's local git config is already set to it.
+Keep it that way.
+
 ## Environment (Windows 11, PowerShell 5.1)
 
 - Node 24.21.0 / npm 11.19.0 via **nvm-windows**.
