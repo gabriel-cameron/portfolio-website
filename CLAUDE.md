@@ -76,24 +76,104 @@ illuminating as it passes; the pointer takes it over while being moved and hands
 2.5s after it stops. Phones get the full effect, and desktop looks alive before the
 visitor touches anything.
 
-### Reduced motion: calm, not dead
+### Motion preferences are deliberately ignored
 
-`prefers-reduced-motion: reduce` does **not** stop the animation. An earlier version
-rendered a single still frame, which looked like a broken page — and it is a common
-preference, since Windows 11 reports it whenever *Accessibility -> Visual effects ->
-Animation effects* is off, which people switch off for perceived speed rather than
-motion sensitivity. Ben Scott's site ignores the preference entirely; this one honours a
-narrower rule that matches what the preference is for:
+**`prefers-reduced-motion` is not consulted anywhere, by instruction.** Gabriel asked for
+this explicitly on 2026-09-13, after two rounds of it getting in the way: the setting is
+on on his machine, so he kept seeing a frozen version of work he had asked for.
 
-> **Nothing moves unless the visitor moves it.**
+Do not reintroduce it — not as a damped variant, not as a media query, not "just for the
+new thing". If it should come back, that is a product decision for Gabriel to make, not a
+correctness fix to apply.
 
-`calmVariant()` in `config.ts` drops the wobble and the drifting focus, freezes the
-brightness swells where they are, and slows and shortens a strike. Illumination still follows a pointer and a tap
-still fires. The frame loop also idles between interactions in this mode, since the image
-is not changing — the tail has to outlast the afterglow or a strike freezes mid-decay.
+The history, for context: the preference is common, because Windows 11 reports it whenever
+*Accessibility -> Visual effects -> Animation effects* is off, and people switch that off
+for perceived speed rather than motion sensitivity. Two earlier attempts lived here — a
+still frame, then a damped "calm mode" — and both were removed. The accessibility cost is
+real and was raised; the decision is Gabriel's.
 
-Do not "fix" a still hero by deleting the preference check. If full motion for everyone
-is ever wanted, that is a product decision to take deliberately.
+## Work view (prototype)
+
+"See my work" moves the name aside and materialises a semi-translucent card in the middle
+of the field, with a named project index alongside it. Placeholder projects; the
+point of it is the interaction and the glass.
+
+- **The materialise transition is an SVG `feDisplacementMap`, not WebGL.** It does the
+  same maths as the hover-effect shader that inspired it, but applies to **live DOM**, so
+  text stays selectable, crisp and readable by assistive tech — no rasterising a component
+  to a bitmap. Measured free: a full-viewport animated displacement ran 5.58ms a frame
+  against a 5.85ms unfiltered baseline in Chromium.
+- **The filter recipe is the whole effect — do not "simplify" it.** Chosen from ten
+  candidates as the closest match to the reference. Two deliberate choices make it a
+  horizontal tear rather than a generic wobble: anisotropic noise (`baseFrequency
+  "0.002 0.09"` — very low across, high down) for long streaks with hard boundaries, and
+  an `feColorMatrix` pinning green to a flat 0.5, which zeroes vertical displacement
+  because `feDisplacementMap` offsets y by `(G - 0.5)`. Change either and it reverts to
+  soft organic distortion. The curve is a hard ease-out (`1 - (1-t)^5`) so the strips snap
+  back into line: 150 peak settling over 620ms, 70 over 460ms when paging. No scale-up —
+  the card is tuned into rather than moved toward you.
+- **An element with `filter` becomes its own backdrop root**, so `backdrop-filter` has
+  nothing to sample through it and the glass goes flat. The warp is therefore removed the
+  moment it is spent (`.work--settled`), which is also why the two live on the same
+  element rather than nesting.
+- Taps on the glass stop propagating, so the field does not fire a strike under a
+  translucent card — that reads as a rendering fault rather than a flourish.
+
+### The project index
+
+A numbered list of project names, replacing the previous `< 1/4 >` pager — that told a
+visitor how many projects existed but not what any of them were, which is the wrong
+trade for a page whose job is to get the work read.
+
+- **The name and the index always take opposite sides.** Left and right when there is
+  room for three columns, top and bottom when stacked. The card is never crowded from one
+  direction.
+- **The three columns are symmetric, and the maths says so.** The card holds the middle;
+  the name and the index each sit centred in the gutter beside it. Both positions derive
+  from `--card-w` rather than being guessed in `vw`, so they stay centred at any window
+  size — verified exact at 1280, 1440, 1600, 1920 and 2560. If the card's width ever
+  changes, `--card-w` must change with it or the symmetry silently drifts.
+- **A hairline dendrite runs from the active item to the card**, redrawn on every switch.
+  It is what makes the index feel like part of the field rather than a control panel
+  bolted beside it.
+- **Items use a fixed-width, left-aligned box.** With `max-content` boxes each title's
+  facing edge lands at (position - text width), and the spread in title lengths is larger
+  than anything the layout does deliberately, so that edge came out ragged and in the
+  wrong order. A uniform box also gives the dendrite a constant place to attach.
+- **The active item scales; it never changes `font-size`.** Font-size reflows the list
+  every frame and makes the other rows jitter. Its transform origin is the edge *away*
+  from the card, so growing does not move the point the dendrite lands on.
+- Rejected on the way here: an arc dial on the right, and the same arc combined with the
+  dendrite. Both looked good standing still and introduced too much movement in use. If
+  either is revisited, the arc's vertical spacing is `radius x sin(step)` — matching two
+  arcs means matching that product, not either number alone.
+- **A press on any control does not reach the field.** `INTERACTIVE` in
+  `lib/neural/index.ts` matches links, buttons and form elements with `closest()`, and the
+  strike handler bails on them. Firing a strike under the button that just started a
+  transition puts two animations on screen at once, which reads as lag even when no frame
+  is dropped — it was mistaken for exactly that. Anything interactive added later is
+  covered automatically; use `data-no-strike` for something that needs it without being a
+  control.
+- **The two steps are sequenced, and the handover is watched rather than timed.** The name
+  slides first (950ms); `revealWhenNameClears()` polls on rAF and starts the card the
+  moment the name has vacated the space the card occupies — its left edge on wide layouts,
+  its top edge when stacked. Do not replace this with a fixed delay: the crossing point
+  depends on both the name's travel and the card's edge, which move with the viewport.
+  Measured 488ms at 1600px wide, 555ms at 1440, 733ms at 1280, 311ms on a phone. A single
+  delay is late on some widths and early on others, and early means the card lands on a
+  name that is still moving. There is a hard fallback at the slide duration in case the
+  name never clears.
+- The reveal is driven by a `.work--in` class rather than the view state, which also keeps
+  an invisible card from swallowing clicks while it waits its turn. It used an expo-out curve, which is 71% settled a fifth of the way through, so the
+  distortion had finished before the eye arrived and the effect looked absent. The curve
+  is now ease-in-out, which holds the distortion through the opening quarter. If this ever
+  looks too slow, change the durations — but leave the curve alone.
+- Not yet verified on iOS Safari, which is the real risk for both the animated filter and
+  `backdrop-filter`. Check on the phone over the LAN before relying on it.
+
+Still open: whether the site is a scrolling page or click-driven views. If click-driven is
+chosen, do it with real URLs (Astro view transitions) rather than JS show/hide, or it
+costs shareable links, the back button and SEO.
 
 ## Technical decisions
 
@@ -105,6 +185,11 @@ is ever wanted, that is a product decision to take deliberately.
   Not WebGL: the effect is line-dominated rather than particle-count-dominated, and a
   fast first paint on a mid-range laptop matters more than true bloom. The render layer
   can be swapped later without touching the simulation.
+- **Astro scoped styles do not reach elements created at runtime.** The scope marker is
+  stamped at build time, so anything `document.createElement`-ed silently loses its
+  styling — the project tags lost their pills exactly this way. Use
+  `.parent :global(child)` for markup that JavaScript builds. The same trap applies to
+  the `?hud` readout, which is styled from `global.css` for this reason.
 - **Biome is scoped to `src/**/*.ts` only.** It parses `.astro` frontmatter but not the
   template, so anything used only in markup looks unused — `--write --unsafe` would
   delete it. `astro check` owns `.astro` files.

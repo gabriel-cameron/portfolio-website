@@ -31,8 +31,6 @@ export interface NeuralConfig {
   breathWavelength: [number, number];
   /** Seconds per cycle, randomised between these bounds. */
   breathPeriod: [number, number];
-  /** Whether the swells move. False freezes them; see calmVariant. */
-  breathAnimated: boolean;
   /** A deliberate click: full strength, reaching far. */
   strikeIntensity: number;
   strikeHops: number;
@@ -77,7 +75,6 @@ const BASE: NeuralConfig = {
   breathWaves: 3,
   breathWavelength: [420, 1100],
   breathPeriod: [8, 16],
-  breathAnimated: true,
   strikeIntensity: 1,
   strikeHops: 12,
   pulseSpeed: 620,
@@ -130,37 +127,6 @@ export function configFor(width: number): NeuralConfig {
     rippleAmplitude: 10,
     rippleWavelength: 200,
     rippleBandWidth: 160,
-  };
-}
-
-/**
- * The field for a visitor who asked for reduced motion.
- *
- * Not a still image. A dead hero reads as a broken page, and most people with
- * the preference set chose it to quieten interface chrome, not to opt out of
- * everything. The rule applied here is narrower and matches what the
- * preference is actually for: **nothing moves unless the visitor moves it.**
- *
- * So the autonomous motion goes — no wobble, no drifting focus, no drifting
- * brightness swells — while illumination still follows a pointer and a tap
- * still fires a strike, slowed and shortened. Every visitor gets a response;
- * none gets motion they did not ask for.
- */
-export function calmVariant(config: NeuralConfig): NeuralConfig {
-  return {
-    ...config,
-    wobbleAmplitude: 0,
-    wanderSpeed: 0,
-    // Frozen, not flat: the swells still vary from place to place, so the
-    // resting field keeps its depth without anything changing over time.
-    breathAnimated: false,
-    pulseSpeed: config.pulseSpeed * 0.5,
-    strikeHops: Math.min(config.strikeHops, 6),
-    glowDecaySeconds: config.glowDecaySeconds * 1.5,
-    // The ripple is real movement, so it is damped hard here — kept because a
-    // click is the visitor asking for it, but not at full strength.
-    rippleAmplitude: config.rippleAmplitude * 0.4,
-    rippleSpeed: config.rippleSpeed * 0.7,
   };
 }
 

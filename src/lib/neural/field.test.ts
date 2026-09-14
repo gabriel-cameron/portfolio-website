@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest';
 import { peakHeapRiseKb } from './allocation-probe';
-import { calmVariant, configFor } from './config';
+import { configFor } from './config';
 import { NeuralField } from './field';
 
 const config = configFor(1200);
@@ -211,82 +211,6 @@ describe('NeuralField breathing', () => {
       }
       previous = Float32Array.from(field.nodeBreath);
     }
-  });
-});
-
-describe('NeuralField calm mode', () => {
-  const calm = calmVariant(config);
-
-  test('never moves a neuron on its own', () => {
-    const field = new NeuralField(1200, 800, calm, 1234);
-    const startX = Float32Array.from(field.liveX);
-    const startY = Float32Array.from(field.liveY);
-    run(field, 8);
-    for (let i = 0; i < field.graph.count; i++) {
-      expect(field.liveX[i]).toBe(startX[i]);
-      expect(field.liveY[i]).toBe(startY[i]);
-    }
-  });
-
-  test('never fires on its own', () => {
-    const field = new NeuralField(1200, 800, calm, 1234);
-    run(field, 30);
-    expect(field.totalFirings).toBe(0);
-    expect(field.pulses.activeCount).toBe(0);
-  });
-
-  test('never drifts the focus on its own', () => {
-    const field = new NeuralField(1200, 800, calm, 1234);
-    const x = field.focus.x;
-    const y = field.focus.y;
-    run(field, 20);
-    expect(field.focus.x).toBe(x);
-    expect(field.focus.y).toBe(y);
-  });
-
-  test('still ripples when the visitor clicks, more gently', () => {
-    const peak = (field: NeuralField) => {
-      field.strikeAt(600, 400);
-      let best = 0;
-      for (let f = 0; f < 60; f++) {
-        field.step(1 / 60);
-        for (let i = 0; i < field.graph.count; i++) {
-          const dx = field.liveX[i] - field.graph.homeX[i];
-          const dy = field.liveY[i] - field.graph.homeY[i];
-          best = Math.max(best, Math.hypot(dx, dy));
-        }
-      }
-      return best;
-    };
-    const calmPeak = peak(new NeuralField(1200, 800, calm, 1234));
-    expect(calmPeak).toBeGreaterThan(0);
-    expect(calmPeak).toBeLessThan(peak(fieldOf()));
-  });
-
-  test('does not breathe on its own', () => {
-    const field = new NeuralField(1200, 800, calm, 1234);
-    field.step(1 / 60);
-    const first = Float32Array.from(field.nodeBreath);
-    run(field, 5);
-    for (let i = 0; i < field.graph.count; i++) {
-      expect(field.nodeBreath[i]).toBe(first[i]);
-    }
-  });
-
-  test('still illuminates where the visitor points', () => {
-    const field = new NeuralField(1200, 800, calm, 1234);
-    field.focus.pointerMove(field.graph.homeX[0], field.graph.homeY[0]);
-    field.step(1 / 60);
-    expect(field.nodeGlow[0]).toBeGreaterThan(0.8);
-  });
-
-  test('still fires a strike when the visitor asks for one', () => {
-    const field = new NeuralField(1200, 800, calm, 1234);
-    field.strikeAt(field.graph.homeX[5], field.graph.homeY[5]);
-    expect(field.pulses.activeCount).toBeGreaterThan(0);
-    run(field, 3);
-    // And it settles rather than running on.
-    expect(field.pulses.activeCount).toBe(0);
   });
 });
 

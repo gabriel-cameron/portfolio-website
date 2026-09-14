@@ -20,8 +20,8 @@ export interface RippleOptions {
  *
  * At the amplitudes in use this is well under a pixel of displacement. It is
  * not merely cosmetic: the retirement age scales with the decay constant, and
- * a slow ripple would otherwise stay on the books for ten seconds, holding the
- * frame loop awake in calm mode for movement nobody can see.
+ * a slow ripple would otherwise stay on the books for ten seconds, displacing
+ * neurons by amounts nobody can see.
  */
 const SPENT = 0.05;
 

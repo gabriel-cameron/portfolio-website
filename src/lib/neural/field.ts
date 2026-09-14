@@ -103,7 +103,7 @@ export class NeuralField {
     this.updatePositions();
     this.focus.step(dt);
     this.illuminate();
-    if (this.config.breathAnimated) this.updateBreath();
+    this.updateBreath();
     this.pulses.step(dt);
   }
 
