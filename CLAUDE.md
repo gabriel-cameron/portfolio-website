@@ -47,6 +47,10 @@ project index opposite it. Content is placeholder.
   facing edge lands at (position − text width), and title lengths vary more than the
   layout does, so that edge goes ragged and out of order. A uniform box also gives the
   connector a constant attachment point.
+- **The index uses a roving tabindex and draws no focus ring.** Only the selected row is
+  tabbable, so focus can never rest on an unselected row, which lets the row's own
+  emphasis act as the focus indicator. Do not add an outline back: a ring on top of the
+  selected row reads as a stray box left behind when paging by number.
 - **The active item scales; it must never change `font-size`**, which reflows the list
   every frame. It scales from the edge away from the card, so the connector's anchor
   holds still.
