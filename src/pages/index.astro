@@ -119,6 +119,7 @@ const projects = [
     </svg>
 
     <nav class="index" aria-label="Projects">
+      <p class="index__hint">press 1&ndash;{projects.length}</p>
       <ul class="index__list">
         {
           projects.map((project, i) => (
@@ -563,6 +564,17 @@ const projects = [
     pointer-events: auto;
   }
 
+  /* Only shown in the wide layout, which is the only place a keyboard can be
+     assumed. The stacked layout is a touch strip, where it would be a lie. */
+  .index__hint {
+    display: none;
+    margin: 0 0 0.7rem;
+    color: rgba(159, 176, 208, 0.45);
+    font-family: var(--font-mono);
+    font-size: 0.62rem;
+    letter-spacing: 0.02em;
+  }
+
   .index__list {
     display: grid;
     gap: 0.5rem;
@@ -817,7 +829,15 @@ const projects = [
     .index {
       top: 50%;
       right: calc(var(--gutter-mid) - var(--index-w) / 2);
+      /* Pinned, not content-sized: the centring maths above assumes the nav is
+         exactly --index-w wide, and a hint of a different width would shift
+         the whole column off centre. */
+      width: var(--index-w);
       transform: translateY(-50%);
+    }
+
+    .index__hint {
+      display: block;
     }
   }
 
