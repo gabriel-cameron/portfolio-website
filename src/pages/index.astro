@@ -246,9 +246,16 @@ const projects = [
     }
 
     for (const [i, item] of items.entries()) {
-      item.classList.toggle('is-active', i === index);
+      const active = i === index;
+      item.classList.toggle('is-active', active);
       const button = item.querySelector('button');
-      if (button) button.setAttribute('aria-current', i === index ? 'true' : 'false');
+      if (!button) continue;
+      button.setAttribute('aria-current', active ? 'true' : 'false');
+      // Roving tabindex. Only the selected row is reachable by Tab, so focus
+      // can never rest on a row that is not the current one — which is what
+      // lets the row's own emphasis serve as the focus indicator instead of an
+      // outline drawn around it.
+      button.tabIndex = active ? 0 : -1;
     }
   }
 
@@ -608,6 +615,17 @@ const projects = [
   .index__btn:hover,
   .index__btn:focus-visible {
     color: var(--text);
+  }
+
+  /*
+    No focus ring on the rows. Focus only ever lands on the selected row — the
+    roving tabindex guarantees it — and that row is already unmistakable: a
+    fifth larger, brighter, with an accent-coloured number. A browser outline
+    on top of that is redundant, and it read as a stray box left behind when
+    paging by number.
+  */
+  .index__btn:focus-visible {
+    outline: none;
   }
 
   .index__item.is-active .index__btn {
